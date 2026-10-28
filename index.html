@@ -38,16 +38,31 @@ const FADE = 400;        // ms de fundido para que no haya clicks
 const scene = document.getElementById('scene');
 const NUM = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 const sonando = document.getElementById('sonando');
-const tracks = AUDIOS.map(src => { const a = new Audio(src); a.preload = 'auto'; a.volume = 0; return a; });
+// Web Audio: en iOS es la única forma de controlar el volumen y de que nada suene antes de tiempo
+const AC = new (window.AudioContext || window.webkitAudioContext)();
+const buffers = new Array(12).fill(null);
+AUDIOS.forEach((src, i) => fetch(src).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+  .then(ab => new Promise((ok, ko) => AC.decodeAudioData(ab, ok, ko))).then(b => { buffers[i] = b; }).catch(() => {}));
+const voz = Array.from({ length: 12 }, () => ({ src: null, gain: null, offset: 0, start: 0 }));
 
-function fade(a, to, done) {
-  clearInterval(a._f);
-  const from = a.volume, t0 = performance.now();
-  a._f = setInterval(() => {
-    const k = Math.min(1, (performance.now() - t0) / FADE);
-    a.volume = from + (to - from) * k;
-    if (k === 1) { clearInterval(a._f); done && done(); }
-  }, 30);
+function sonar(i) {
+  const v = voz[i], b = buffers[i];
+  if (!b || v.src) return;
+  if (AC.state !== 'running') AC.resume();
+  const g = AC.createGain(); g.gain.setValueAtTime(0, AC.currentTime); g.gain.linearRampToValueAtTime(1, AC.currentTime + FADE / 1000);
+  g.connect(AC.destination);
+  const s = AC.createBufferSource(); s.buffer = b; s.connect(g);
+  const off = REANUDAR ? v.offset % b.duration : 0;
+  s.start(0, off); v.src = s; v.gain = g; v.start = AC.currentTime - off;
+  s.onended = () => { if (v.src === s) { v.src = null; v.offset = 0; sonando.style.opacity = 0; } };
+  sonando.textContent = '♪  ' + NUM[i]; sonando.style.opacity = 1;
+}
+function callar(i) {
+  const v = voz[i]; if (!v.src) return;
+  const s = v.src, g = v.gain; v.src = null; v.offset = AC.currentTime - v.start;
+  g.gain.cancelScheduledValues(AC.currentTime); g.gain.setValueAtTime(g.gain.value, AC.currentTime);
+  g.gain.linearRampToValueAtTime(0, AC.currentTime + FADE / 1000); s.stop(AC.currentTime + FADE / 1000 + 0.05);
+  sonando.style.opacity = 0;
 }
 
 // Crea una entidad por target y le cuelga play/pause
@@ -57,21 +72,16 @@ for (let i = 0; i < 12; i++) {
   const anim = document.createElement('a-entity');
   anim.setAttribute('activacion', `tipo: ${i + 1}`);
   e.appendChild(anim);
-  e.addEventListener('targetFound', () => {
-    tracks.forEach((t, j) => { if (j !== i && !t.paused) fade(t, 0, () => t.pause()); });
-    const a = tracks[i];
-    if (!REANUDAR) a.currentTime = 0;
-    a.play().then(() => { sonando.textContent = '♪  ' + NUM[i]; sonando.style.opacity = 1; }).catch(() => {});
-    fade(a, 1);
-  });
-  e.addEventListener('targetLost', () => { const a = tracks[i]; sonando.style.opacity = 0; fade(a, 0, () => a.pause()); });
+  e.addEventListener('targetFound', () => { for (let j = 0; j < 12; j++) if (j !== i) callar(j); sonar(i); });
+  e.addEventListener('targetLost', () => callar(i));
   scene.appendChild(e);
 }
 
-// iOS/Android bloquean el audio sin un gesto: se desbloquean todos en el primer toque
+// iOS/Android exigen un toque para habilitar el audio
 document.getElementById('start').addEventListener('click', (ev) => {
   ev.currentTarget.remove();
-  tracks.forEach(t => { const p = t.play(); if (p) p.then(() => t.pause()).catch(() => {}); });
+  // desbloquea el audio en iOS con un sonido vacío: no suena nada
+  AC.resume(); const q = AC.createBufferSource(); q.buffer = AC.createBuffer(1, 1, 22050); q.connect(AC.destination); q.start(0);
   const go = () => scene.systems['mindar-image-system'].start();
   scene.hasLoaded ? go() : scene.addEventListener('loaded', go);
 }, { once: true });

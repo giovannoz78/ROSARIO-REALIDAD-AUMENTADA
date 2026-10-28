@@ -280,11 +280,19 @@
       this.root = new T.Group(); this.el.setObject3D('activacion', this.root);
       this.anim = TIPOS[(this.data.tipo - 1) % 12](this.root);
       this.t = 0;
+      // MindAR escala el mundo: el tamaño de los puntos se corrige con la escala real del trigger
+      this.mats = []; this.root.traverse((o) => { if (o.isPoints) this.mats.push([o.material, o.material.size]); });
+      this.ws = new T.Vector3();
       // reinicia la animación cada vez que se encuentra el trigger
       if (this.el.parentEl) this.el.parentEl.addEventListener('targetFound', () => { this.t = 0; });
     },
     tick(_, dtms) {
+      // solo se calcula cuando su trigger está a la vista
+      const p = this.el.parentEl && this.el.parentEl.object3D;
+      if (p && !p.visible) return;
       const dt = Math.min(0.05, (dtms || 16) / 1000); this.t += dt;
+      this.root.getWorldScale(this.ws);
+      for (const [m, base] of this.mats) m.size = base * this.ws.x;
       this.anim(this.t, dt);
     },
   });
