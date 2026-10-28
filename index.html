@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>XII Activaciones · AR</title>
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<style>
+  html,body{margin:0;background:#000;overflow:hidden;font-family:Georgia,serif}
+  #start{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+    background:#000;color:#f3dfb4;letter-spacing:.3em;font-size:14px;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="start">TOCAR PARA ENTRAR</div>
+
+<a-scene id="scene" mindar-image="imageTargetSrc: targets.mind; maxTrack: 1; uiScanning: no; filterMinCF: 0.0001; filterBeta: 0.001"
+  color-space="sRGB" renderer="colorManagement: true" vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false" embedded autoStart="false">
+  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+</a-scene>
+
+<script>
+// Un archivo de audio por activación, en el mismo orden que los triggers (I a XII)
+const AUDIOS = Array.from({length: 12}, (_, i) => `audio/activacion_${String(i + 1).padStart(2, '0')}.mp3`);
+const REANUDAR = true;   // true: retoma donde quedó; false: arranca de cero cada vez
+const FADE = 400;        // ms de fundido para que no haya clicks
+
+const scene = document.getElementById('scene');
+const tracks = AUDIOS.map(src => { const a = new Audio(src); a.preload = 'auto'; a.volume = 0; return a; });
+
+function fade(a, to, done) {
+  clearInterval(a._f);
+  const from = a.volume, t0 = performance.now();
+  a._f = setInterval(() => {
+    const k = Math.min(1, (performance.now() - t0) / FADE);
+    a.volume = from + (to - from) * k;
+    if (k === 1) { clearInterval(a._f); done && done(); }
+  }, 30);
+}
+
+// Crea una entidad por target y le cuelga play/pause
+for (let i = 0; i < 12; i++) {
+  const e = document.createElement('a-entity');
+  e.setAttribute('mindar-image-target', `targetIndex: ${i}`);
+  // acá va el contenido visual de cada activación (gltf, plano, etc.)
+  e.addEventListener('targetFound', () => {
+    tracks.forEach((t, j) => { if (j !== i && !t.paused) fade(t, 0, () => t.pause()); });
+    const a = tracks[i];
+    if (!REANUDAR) a.currentTime = 0;
+    a.play().catch(() => {});
+    fade(a, 1);
+  });
+  e.addEventListener('targetLost', () => { const a = tracks[i]; fade(a, 0, () => a.pause()); });
+  scene.appendChild(e);
+}
+
+// iOS/Android bloquean el audio sin un gesto: se desbloquean todos en el primer toque
+document.getElementById('start').addEventListener('click', async (ev) => {
+  ev.currentTarget.remove();
+  await Promise.all(tracks.map(t => t.play().then(() => t.pause()).catch(() => {})));
+  scene.systems['mindar-image-system'].start();
+}, { once: true });
+</script>
+</body>
+</html>
