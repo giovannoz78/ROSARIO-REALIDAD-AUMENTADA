@@ -6,6 +6,7 @@
 <title>XII Activaciones · AR</title>
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<script src="activaciones.js"></script>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:transparent;font-family:Georgia,serif}
   #start{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;
@@ -53,7 +54,9 @@ function fade(a, to, done) {
 for (let i = 0; i < 12; i++) {
   const e = document.createElement('a-entity');
   e.setAttribute('mindar-image-target', `targetIndex: ${i}`);
-  // acá va el contenido visual de cada activación (gltf, plano, etc.)
+  const anim = document.createElement('a-entity');
+  anim.setAttribute('activacion', `tipo: ${i + 1}`);
+  e.appendChild(anim);
   e.addEventListener('targetFound', () => {
     tracks.forEach((t, j) => { if (j !== i && !t.paused) fade(t, 0, () => t.pause()); });
     const a = tracks[i];
