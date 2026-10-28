@@ -10,6 +10,7 @@
   html,body{margin:0;padding:0;overflow:hidden;background:transparent;font-family:Georgia,serif}
   #start{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;
     background:#000;color:#f3dfb4;letter-spacing:.3em;font-size:14px;cursor:pointer}
+  #sonando{position:fixed;left:0;right:0;bottom:48px;z-index:9;text-align:center;color:#f3dfb4;letter-spacing:.3em;font-size:14px;opacity:0;transition:opacity .4s;pointer-events:none;text-shadow:0 0 8px #000}
   #start img{width:min(70vw,360px);height:auto;display:block}
 </style>
 </head>
@@ -18,6 +19,8 @@
   <span>TOCAR PARA ENTRAR</span>
   <img src="rosario.png" alt="Rosario">
 </div>
+
+<div id="sonando"></div>
 
 <a-scene id="scene" mindar-image="imageTargetSrc: targets.mind; autoStart: false; maxTrack: 1; uiScanning: yes; uiLoading: yes; filterMinCF: 0.0001; filterBeta: 0.001"
   color-space="sRGB" renderer="colorManagement: true" vr-mode-ui="enabled: false"
@@ -32,6 +35,8 @@ const REANUDAR = true;   // true: retoma donde quedó; false: arranca de cero ca
 const FADE = 400;        // ms de fundido para que no haya clicks
 
 const scene = document.getElementById('scene');
+const NUM = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+const sonando = document.getElementById('sonando');
 const tracks = AUDIOS.map(src => { const a = new Audio(src); a.preload = 'auto'; a.volume = 0; return a; });
 
 function fade(a, to, done) {
@@ -53,10 +58,10 @@ for (let i = 0; i < 12; i++) {
     tracks.forEach((t, j) => { if (j !== i && !t.paused) fade(t, 0, () => t.pause()); });
     const a = tracks[i];
     if (!REANUDAR) a.currentTime = 0;
-    a.play().catch(() => {});
+    a.play().then(() => { sonando.textContent = '♪  ' + NUM[i]; sonando.style.opacity = 1; }).catch(() => {});
     fade(a, 1);
   });
-  e.addEventListener('targetLost', () => { const a = tracks[i]; fade(a, 0, () => a.pause()); });
+  e.addEventListener('targetLost', () => { const a = tracks[i]; sonando.style.opacity = 0; fade(a, 0, () => a.pause()); });
   scene.appendChild(e);
 }
 
