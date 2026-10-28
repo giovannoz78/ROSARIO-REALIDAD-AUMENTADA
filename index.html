@@ -15,9 +15,9 @@
 <body>
 <div id="start">TOCAR PARA ENTRAR</div>
 
-<a-scene id="scene" mindar-image="imageTargetSrc: targets.mind; maxTrack: 1; uiScanning: no; filterMinCF: 0.0001; filterBeta: 0.001"
+<a-scene id="scene" mindar-image="imageTargetSrc: targets.mind; autoStart: false; maxTrack: 1; uiScanning: yes; uiLoading: yes; filterMinCF: 0.0001; filterBeta: 0.001"
   color-space="sRGB" renderer="colorManagement: true" vr-mode-ui="enabled: false"
-  device-orientation-permission-ui="enabled: false" embedded autoStart="false">
+  device-orientation-permission-ui="enabled: false">
   <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 </a-scene>
 
@@ -57,10 +57,11 @@ for (let i = 0; i < 12; i++) {
 }
 
 // iOS/Android bloquean el audio sin un gesto: se desbloquean todos en el primer toque
-document.getElementById('start').addEventListener('click', async (ev) => {
+document.getElementById('start').addEventListener('click', (ev) => {
   ev.currentTarget.remove();
-  await Promise.all(tracks.map(t => t.play().then(() => t.pause()).catch(() => {})));
-  scene.systems['mindar-image-system'].start();
+  tracks.forEach(t => { const p = t.play(); if (p) p.then(() => t.pause()).catch(() => {}); });
+  const go = () => scene.systems['mindar-image-system'].start();
+  scene.hasLoaded ? go() : scene.addEventListener('loaded', go);
 }, { once: true });
 </script>
 </body>
