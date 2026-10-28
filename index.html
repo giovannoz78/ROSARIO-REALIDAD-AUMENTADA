@@ -7,13 +7,17 @@
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 <style>
-  html,body{margin:0;background:#000;overflow:hidden;font-family:Georgia,serif}
-  #start{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;
+  html,body{margin:0;padding:0;overflow:hidden;background:transparent;font-family:Georgia,serif}
+  #start{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;
     background:#000;color:#f3dfb4;letter-spacing:.3em;font-size:14px;cursor:pointer}
+  #start img{width:min(70vw,360px);height:auto;display:block}
 </style>
 </head>
 <body>
-<div id="start">TOCAR PARA ENTRAR</div>
+<div id="start">
+  <span>TOCAR PARA ENTRAR</span>
+  <img src="rosario.png" alt="Rosario">
+</div>
 
 <a-scene id="scene" mindar-image="imageTargetSrc: targets.mind; autoStart: false; maxTrack: 1; uiScanning: yes; uiLoading: yes; filterMinCF: 0.0001; filterBeta: 0.001"
   color-space="sRGB" renderer="colorManagement: true" vr-mode-ui="enabled: false"
