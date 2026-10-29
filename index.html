@@ -56,6 +56,20 @@ pts=[];line([prev,[0,.328]],pts);line([[-.011,.328],[.011,.328],[.011,.355],[.05
 pts=[];circle(0,.35,.006,pts,65);line([[-.045,.36],[-.022,.371],[-.006,.378],[.006,.378],[.022,.371],[.045,.36]],pts,.0007);line([[-.006,.377],[-.007,.399],[.005,.419],[-.003,.449]],pts,.0006);line([[.006,.377],[.008,.399],[-.004,.419],[.004,.449]],pts,.0006);line([[-.009,.4],[.009,.4],[.006,.413],[-.006,.413],[-.009,.4]],pts,.0007);line([[-.004,.385],[.004,.385]],pts,.0007);group('corpus',pts);
 const particles=[];groups.forEach((g,gi)=>{g.pts.forEach(p=>{particles.push({tx:p[0],ty:p[1],g:gi,delay:rnd()*.4,a:rnd()*TAU,dist:.12+rnd()*.4,phase:rnd()*TAU,size:.45+rnd()*.85,bright:.45+rnd()*.55,keep:rnd()});});});
 
+  // imagen central: aparece de negro mientras se forma el rosario, con bordes desvanecidos
+  const formationEnd = (groups.length - 1) * .52 + 2.4;
+  const foto = new Image(); let fotoMask = null; foto.src = 'portada.jpg';
+  foto.onload = () => {
+    const S = 512, c = document.createElement('canvas'); c.width = S; c.height = Math.round(S * 1.2); const g = c.getContext('2d');
+    const k = Math.max(c.width / foto.width, c.height / foto.height), w = foto.width * k, h = foto.height * k;
+    g.drawImage(foto, (c.width - w) / 2, (c.height - h) / 2, w, h);
+    g.globalCompositeOperation = 'destination-in';
+    g.save(); g.translate(c.width / 2, c.height / 2); g.scale(1, c.height / c.width);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, c.width / 2);
+    gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(.62, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, c.width / 2, 0, Math.PI * 2); g.fill(); g.restore();
+    fotoMask = c;
+  };
   const sprite = document.createElement('canvas'); sprite.width = sprite.height = 64;
   { const g = sprite.getContext('2d'), rgb = '255,221,165', gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
     gr.addColorStop(0, `rgba(${rgb},1)`); gr.addColorStop(.08, `rgba(${rgb},.95)`); gr.addColorStop(.22, `rgba(${rgb},.24)`);
@@ -66,7 +80,13 @@ const particles=[];groups.forEach((g,gi)=>{g.pts.forEach(p=>{particles.push({tx:
   function render() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-    const scale = Math.min(H * .91, W * 1.65), cx = W / 2, cy = H * .525; ctx.globalCompositeOperation = 'lighter';
+    const scale = Math.min(H * .91, W * 1.65), cx = W / 2, cy = H * .525;
+    if (fotoMask) {
+      const k = clamp(time / formationEnd), e = k * k * (3 - 2 * k);
+      const fw = .42 * scale, fh = fw * 1.2;               // dentro del aro de cuentas
+      ctx.globalAlpha = e; ctx.drawImage(fotoMask, cx - fw / 2, cy - .205 * scale - fh / 2, fw, fh); ctx.globalAlpha = 1;
+    }
+    ctx.globalCompositeOperation = 'lighter';
     const threshold = settings.density / 1.5;
     for (const p of particles) {
       if (p.keep > threshold) continue; const local = (time - p.g * .52 - p.delay) / 2.1; if (local <= 0) continue;
