@@ -27,6 +27,7 @@
 <a-scene id="scene" mindar-image="imageTargetSrc: targets.mind; autoStart: false; maxTrack: 1; uiScanning: yes; uiLoading: yes; filterMinCF: 0.0001; filterBeta: 0.001"
   color-space="sRGB" renderer="colorManagement: true" vr-mode-ui="enabled: false"
   device-orientation-permission-ui="enabled: false">
+  <a-assets id="assets"></a-assets>
   <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
   <a-entity light="type: ambient; intensity: 0.35; color: #fff4e0"></a-entity>
   <a-entity light="type: directional; intensity: 0.7; color: #ffd9a0" position="-1 1.2 0.6"></a-entity>
@@ -39,12 +40,22 @@ const REANUDAR = true;   // true: retoma donde quedó; false: arranca de cero ca
 const FADE = 400;        // ms de fundido para que no haya clicks
 
 // Modelos 3D por activación. Las que no tienen GLB todavía usan su animación de partículas.
+// Videos por activación: se reproducen dentro del rosetón (tienen prioridad sobre el GLB).
+const VIDEOS = {
+  2: { src: 'videos/activacion_02.mp4', sonido: true },   // sonido: true usa el audio original del video
+  3: { src: 'videos/activacion_03.mp4', sonido: true },
+};
 const MODELOS = {
   1: { src: 'modelos/activacion_01.glb', position: '0 0 0', scale: '1 1 1' },
-  2: { src: 'modelos/activacion_02.glb', position: '0 0 0', scale: '1 1 1', loop: true },
 };
 
 const scene = document.getElementById('scene');
+const videos = [];
+function apagarVideo(v) {
+  if (!v._g) { v.pause(); return; }
+  const t = AC.currentTime; v._g.gain.cancelScheduledValues(t); v._g.gain.setValueAtTime(v._g.gain.value, t);
+  v._g.gain.linearRampToValueAtTime(0, t + FADE / 1000); setTimeout(() => { if (v._g.gain.value < 0.01) v.pause(); }, FADE + 50);
+}
 const NUM = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 const sonando = document.getElementById('sonando');
 // Web Audio: en iOS es la única forma de controlar el volumen y de que nada suene antes de tiempo
@@ -79,8 +90,28 @@ for (let i = 0; i < 12; i++) {
   const e = document.createElement('a-entity');
   e.setAttribute('mindar-image-target', `targetIndex: ${i}`);
   const anim = document.createElement('a-entity');
-  const M = MODELOS[i + 1];
-  if (M) {
+  const V = VIDEOS[i + 1];
+  const M = V ? null : MODELOS[i + 1];
+  let vid = null;
+  if (V) {
+    vid = document.createElement('video');
+    vid.id = 'vid' + (i + 1); vid.src = V.src; vid.loop = true; vid.muted = !V.sonido;
+    vid.setAttribute('playsinline', ''); vid.setAttribute('webkit-playsinline', ''); vid.preload = 'auto'; vid.crossOrigin = 'anonymous';
+    document.getElementById('assets').appendChild(vid); videos.push(vid);
+    if (V.sonido) { // el sonido del video pasa por un control de volumen: silencio hasta que aparece el rosetón
+      vid._g = AC.createGain(); vid._g.gain.value = 0;
+      AC.createMediaElementSource(vid).connect(vid._g); vid._g.connect(AC.destination);
+    }
+    const disco = document.createElement('a-circle');
+    disco.setAttribute('radius', '0.43'); disco.setAttribute('segments', '96');
+    disco.setAttribute('material', `shader: flat; src: #vid${i + 1}`);
+    disco.setAttribute('position', '0 0 0.01');
+    anim.appendChild(disco);
+    const filo = document.createElement('a-ring');
+    filo.setAttribute('radius-inner', '0.43'); filo.setAttribute('radius-outer', '0.445'); filo.setAttribute('segments-theta', '96');
+    filo.setAttribute('material', 'shader: flat; color: #d8b878'); filo.setAttribute('position', '0 0 0.011');
+    anim.appendChild(filo);
+  } else if (M) {
     anim.setAttribute('gltf-model', M.src);
     anim.setAttribute('position', M.position);
     anim.setAttribute('scale', M.scale);
@@ -90,13 +121,19 @@ for (let i = 0; i < 12; i++) {
   e.appendChild(anim);
   e.addEventListener('targetFound', () => {
     for (let j = 0; j < 12; j++) if (j !== i) callar(j);
-    sonar(i);
+    videos.forEach(v => { if (v !== vid && !v.paused) apagarVideo(v); });
+    if (vid && V.sonido) { if (AC.state !== 'running') AC.resume(); sonando.textContent = '♪  ' + NUM[i]; sonando.style.opacity = 1; }
+    else sonar(i);
+    if (vid) {
+      vid.currentTime = 0; vid.play().catch(() => {});
+      if (vid._g) { const t = AC.currentTime; vid._g.gain.cancelScheduledValues(t); vid._g.gain.setValueAtTime(0, t); vid._g.gain.linearRampToValueAtTime(1, t + FADE / 1000); }
+    }
     if (M) { // reinicia la animación del GLB cada vez que aparece el rosetón
       anim.removeAttribute('animation-mixer');
       anim.setAttribute('animation-mixer', M.loop ? 'clip: *; loop: repeat' : 'clip: *; loop: once; clampWhenFinished: true');
     }
   });
-  e.addEventListener('targetLost', () => callar(i));
+  e.addEventListener('targetLost', () => { callar(i); if (vid) { apagarVideo(vid); sonando.style.opacity = 0; } });
   scene.appendChild(e);
 }
 
@@ -105,6 +142,8 @@ document.getElementById('start').addEventListener('click', (ev) => {
   ev.currentTarget.remove();
   // desbloquea el audio en iOS con un sonido vacío: no suena nada
   AC.resume(); const q = AC.createBufferSource(); q.buffer = AC.createBuffer(1, 1, 22050); q.connect(AC.destination); q.start(0);
+  // los videos se preparan con el mismo toque; los que tienen sonido quedan en volumen 0 hasta su rosetón
+  videos.forEach(v => { const p = v.play(); if (p) p.then(() => v.pause()).catch(() => {}); });
   const go = () => scene.systems['mindar-image-system'].start();
   scene.hasLoaded ? go() : scene.addEventListener('loaded', go);
 }, { once: true });
