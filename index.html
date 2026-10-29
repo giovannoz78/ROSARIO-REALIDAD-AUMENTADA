@@ -6,6 +6,7 @@
 <title>XII Activaciones · AR</title>
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
 <script src="activaciones.js"></script>
 <style>
   html,body{margin:0;padding:0;overflow:hidden;background:transparent;font-family:Georgia,serif}
@@ -27,6 +28,8 @@
   color-space="sRGB" renderer="colorManagement: true" vr-mode-ui="enabled: false"
   device-orientation-permission-ui="enabled: false">
   <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+  <a-entity light="type: ambient; intensity: 0.5; color: #fff4e0"></a-entity>
+  <a-entity light="type: directional; intensity: 1.0; color: #ffe8c0" position="0.5 1 1"></a-entity>
 </a-scene>
 
 <script>
@@ -34,6 +37,11 @@
 const AUDIOS = Array.from({length: 12}, (_, i) => `audio/activacion_${String(i + 1).padStart(2, '0')}.mp3`);
 const REANUDAR = true;   // true: retoma donde quedó; false: arranca de cero cada vez
 const FADE = 400;        // ms de fundido para que no haya clicks
+
+// Modelos 3D por activación. Las que no tienen GLB todavía usan su animación de partículas.
+const MODELOS = {
+  1: { src: 'modelos/activacion_01.glb', position: '0 -0.46 0.04', scale: '0.72 0.72 0.72' },
+};
 
 const scene = document.getElementById('scene');
 const NUM = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
@@ -70,9 +78,23 @@ for (let i = 0; i < 12; i++) {
   const e = document.createElement('a-entity');
   e.setAttribute('mindar-image-target', `targetIndex: ${i}`);
   const anim = document.createElement('a-entity');
-  anim.setAttribute('activacion', `tipo: ${i + 1}`);
+  const M = MODELOS[i + 1];
+  if (M) {
+    anim.setAttribute('gltf-model', M.src);
+    anim.setAttribute('position', M.position);
+    anim.setAttribute('scale', M.scale);
+  } else {
+    anim.setAttribute('activacion', `tipo: ${i + 1}`);
+  }
   e.appendChild(anim);
-  e.addEventListener('targetFound', () => { for (let j = 0; j < 12; j++) if (j !== i) callar(j); sonar(i); });
+  e.addEventListener('targetFound', () => {
+    for (let j = 0; j < 12; j++) if (j !== i) callar(j);
+    sonar(i);
+    if (M) { // reinicia la animación del GLB cada vez que aparece el rosetón
+      anim.removeAttribute('animation-mixer');
+      anim.setAttribute('animation-mixer', 'clip: *; loop: once; clampWhenFinished: true');
+    }
+  });
   e.addEventListener('targetLost', () => callar(i));
   scene.appendChild(e);
 }
