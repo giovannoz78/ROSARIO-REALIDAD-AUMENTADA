@@ -37,7 +37,7 @@
 // Un archivo de audio por activación, en el mismo orden que los triggers (I a XII)
 const AUDIOS = Array.from({length: 12}, (_, i) => `audio/activacion_${String(i + 1).padStart(2, '0')}.mp3`);
 const REANUDAR = true;   // true: retoma donde quedó; false: arranca de cero cada vez
-const FADE = 400;        // ms de fundido para que no haya clicks
+const FADE = 900;        // ms de fundido de entrada y salida (imagen y sonido)
 
 // Modelos 3D por activación. Las que no tienen GLB todavía usan su animación de partículas.
 // Videos por activación: se reproducen dentro del rosetón (tienen prioridad sobre el GLB).
@@ -51,10 +51,33 @@ const MODELOS = {
 
 const scene = document.getElementById('scene');
 const videos = [];
+// soporte que copia la posición del rosetón mientras se ve, y se queda quieto al perderlo (para el fundido de salida)
+AFRAME.registerComponent('seguir', {
+  schema: { type: 'string' },
+  init() { this.el.object3D.matrixAutoUpdate = false; this.el.object3D.visible = false; },
+  tick() {
+    if (!this.ancla) this.ancla = document.getElementById(this.data);
+    const a = this.ancla && this.ancla.object3D;
+    if (a && a.visible) { this.el.object3D.matrix.copy(a.matrixWorld); this.el.object3D.matrixWorldNeedsUpdate = true; }
+  },
+});
+
+// fundido de la imagen del video (opacidad del disco y del filo dorado)
+function fundir(v, hacia, alTerminar) {
+  cancelAnimationFrame(v._raf);
+  const mats = (v._capas || []).map(c => c.getObject3D('mesh')).filter(Boolean).map(m => m.material);
+  const desde = mats.length ? mats[0].opacity : 0, t0 = performance.now();
+  const paso = (t) => {
+    const k = Math.min(1, (t - t0) / FADE), e = k * k * (3 - 2 * k);
+    mats.forEach(m => { m.opacity = desde + (hacia - desde) * e; });
+    if (k < 1) v._raf = requestAnimationFrame(paso); else if (alTerminar) alTerminar();
+  };
+  v._raf = requestAnimationFrame(paso);
+}
 function apagarVideo(v) {
   if (!v._g) { v.pause(); return; }
   const t = AC.currentTime; v._g.gain.cancelScheduledValues(t); v._g.gain.setValueAtTime(v._g.gain.value, t);
-  v._g.gain.linearRampToValueAtTime(0, t + FADE / 1000); setTimeout(() => { if (v._g.gain.value < 0.01) v.pause(); }, FADE + 50);
+  v._g.gain.linearRampToValueAtTime(0, t + FADE / 1000); clearTimeout(v._fin); v._fin = setTimeout(() => { if (v._g.gain.value < 0.01) v.pause(); }, FADE + 80);
 }
 const NUM = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 const sonando = document.getElementById('sonando');
@@ -88,7 +111,7 @@ function callar(i) {
 // Crea una entidad por target y le cuelga play/pause
 for (let i = 0; i < 12; i++) {
   const e = document.createElement('a-entity');
-  e.setAttribute('mindar-image-target', `targetIndex: ${i}`);
+  e.setAttribute('mindar-image-target', `targetIndex: ${i}`); e.id = 'ancla' + i;
   const anim = document.createElement('a-entity');
   const V = VIDEOS[i + 1];
   const M = V ? null : MODELOS[i + 1];
@@ -104,13 +127,16 @@ for (let i = 0; i < 12; i++) {
     }
     const disco = document.createElement('a-circle');
     disco.setAttribute('radius', '0.43'); disco.setAttribute('segments', '96');
-    disco.setAttribute('material', `shader: flat; src: #vid${i + 1}`);
+    disco.setAttribute('material', `shader: flat; src: #vid${i + 1}; transparent: true; opacity: 0`);
     disco.setAttribute('position', '0 0 0.01');
     anim.appendChild(disco);
     const filo = document.createElement('a-ring');
     filo.setAttribute('radius-inner', '0.43'); filo.setAttribute('radius-outer', '0.445'); filo.setAttribute('segments-theta', '96');
-    filo.setAttribute('material', 'shader: flat; color: #d8b878'); filo.setAttribute('position', '0 0 0.011');
+    filo.setAttribute('material', 'shader: flat; color: #d8b878; transparent: true; opacity: 0'); filo.setAttribute('position', '0 0 0.011');
     anim.appendChild(filo);
+    vid._capas = [disco, filo];
+    vid._soporte = document.createElement('a-entity'); vid._soporte.setAttribute('seguir', 'ancla' + i);
+    vid._soporte.appendChild(anim); scene.appendChild(vid._soporte);
   } else if (M) {
     anim.setAttribute('gltf-model', M.src);
     anim.setAttribute('position', M.position);
@@ -118,14 +144,15 @@ for (let i = 0; i < 12; i++) {
   } else {
     anim.setAttribute('activacion', `tipo: ${i + 1}`);
   }
-  e.appendChild(anim);
+  if (!V) e.appendChild(anim);
   e.addEventListener('targetFound', () => {
     for (let j = 0; j < 12; j++) if (j !== i) callar(j);
     videos.forEach(v => { if (v !== vid && !v.paused) apagarVideo(v); });
     if (vid && V.sonido) { if (AC.state !== 'running') AC.resume(); sonando.textContent = '♪  ' + NUM[i]; sonando.style.opacity = 1; }
     else sonar(i);
     if (vid) {
-      vid.currentTime = 0; vid.play().catch(() => {});
+      clearTimeout(vid._fin); vid._soporte.object3D.visible = true;
+      vid.currentTime = 0; vid.play().catch(() => {}); fundir(vid, 1);
       if (vid._g) { const t = AC.currentTime; vid._g.gain.cancelScheduledValues(t); vid._g.gain.setValueAtTime(0, t); vid._g.gain.linearRampToValueAtTime(1, t + FADE / 1000); }
     }
     if (M) { // reinicia la animación del GLB cada vez que aparece el rosetón
@@ -133,7 +160,13 @@ for (let i = 0; i < 12; i++) {
       anim.setAttribute('animation-mixer', M.loop ? 'clip: *; loop: repeat' : 'clip: *; loop: once; clampWhenFinished: true');
     }
   });
-  e.addEventListener('targetLost', () => { callar(i); if (vid) { apagarVideo(vid); sonando.style.opacity = 0; } });
+  e.addEventListener('targetLost', () => {
+    callar(i);
+    if (vid) {
+      apagarVideo(vid); sonando.style.opacity = 0;
+      fundir(vid, 0, () => { vid._soporte.object3D.visible = false; });   // se desvanece en su última posición
+    }
+  });
   scene.appendChild(e);
 }
 
