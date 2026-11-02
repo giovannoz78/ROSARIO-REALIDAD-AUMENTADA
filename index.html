@@ -72,7 +72,10 @@ const particles=[];groups.forEach((g,gi)=>{g.pts.forEach(p=>{const b=beadOf(p[0]
   const IMG = { w: 970, h: 1621 }, OVAL = { x: 485, y: 750, rx: 164, ry: 254 };
   const tocar = document.getElementById('tocar'), titulo = document.getElementById('titulo');
   // imagen central: aparece de negro mientras se forma el rosario, con bordes desvanecidos
-  const formationEnd = (groups.length - 1) * .52 + 2.4;
+  // 16 segundos, uno por cada año de la vida de Carlo: rosario e imagen se completan juntos
+  const DURACION = 16, SUBIDA = 2.1, RETRASO = .4;
+  const PASO = (DURACION - SUBIDA - RETRASO) / (groups.length - 1);
+  const formationEnd = DURACION;
   const foto = new Image(); let fotoMask = null; foto.src = 'portada.jpg';
   foto.onload = () => {
     const S = 512, c = document.createElement('canvas'); c.width = S; c.height = Math.round(S * OVAL.ry / OVAL.rx); const g = c.getContext('2d');
@@ -121,7 +124,7 @@ const particles=[];groups.forEach((g,gi)=>{g.pts.forEach(p=>{const b=beadOf(p[0]
     pctx.globalCompositeOperation = 'lighter';
     const threshold = settings.density / 1.5;
     for (const p of particles) {
-      if (p.keep > threshold) continue; const local = (time - p.g * .52 - p.delay) / 2.1; if (local <= 0) continue;
+      if (p.keep > threshold) continue; const local = (time - p.g * PASO - p.delay) / SUBIDA; if (local <= 0) continue;
       const t = clamp(local), ease = 1 - Math.pow(1 - t, 3), scatter = 1 - ease, drift = Math.sin(time * .8 + p.phase) * .0008 * settings.motion;
       const offx = Math.cos(p.a + time * .1) * p.dist * scatter + drift, offy = Math.sin(p.a + time * .1) * p.dist * scatter + Math.cos(time + p.phase) * .0006 * settings.motion;
       let x, y;
