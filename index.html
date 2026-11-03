@@ -146,7 +146,7 @@ const particles=[];groups.forEach((g,gi)=>{g.pts.forEach(p=>{const b=beadOf(p[0]
 })();
 </script>
 <script>
-// Un archivo de audio por activación, en el mismo orden que los triggers (I a XII)
+// Audio aparte solo para las activaciones sin video (hoy las 12 usan el sonido de su video)
 const AUDIOS = Array.from({length: 12}, (_, i) => `audio/activacion_${String(i + 1).padStart(2, '0')}.mp3`);
 const REANUDAR = true;   // true: retoma donde quedó; false: arranca de cero cada vez
 const FADE = 900;        // ms de fundido de entrada y salida (imagen y sonido)
@@ -206,7 +206,7 @@ const sonando = document.getElementById('sonando');
 // Web Audio: en iOS es la única forma de controlar el volumen y de que nada suene antes de tiempo
 const AC = new (window.AudioContext || window.webkitAudioContext)();
 const buffers = new Array(12).fill(null);
-AUDIOS.forEach((src, i) => fetch(src).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+AUDIOS.forEach((src, i) => !VIDEOS[i + 1] && fetch(src).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
   .then(ab => new Promise((ok, ko) => AC.decodeAudioData(ab, ok, ko))).then(b => { buffers[i] = b; }).catch(() => {}));
 const voz = Array.from({ length: 12 }, () => ({ src: null, gain: null, offset: 0, start: 0 }));
 
